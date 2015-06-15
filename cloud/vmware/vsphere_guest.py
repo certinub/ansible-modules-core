@@ -575,6 +575,20 @@ def reconfigure_vm(vsphere_client, vm, module, esxi, resource_pool, cluster_name
     memoryHotAddEnabled = bool(vm.properties.config.memoryHotAddEnabled)
     cpuHotAddEnabled = bool(vm.properties.config.cpuHotAddEnabled)
     cpuHotRemoveEnabled = bool(vm.properties.config.cpuHotRemoveEnabled)
+ 
+    # Change Host
+    if esxi['hostname']:
+        to_host = None
+        available_hosts = vsphere_client.get_hosts()
+        if esxi['hostname'] not in available_hosts.values():
+          raise ValueError("%s doesn't exist" % esxi['hostname'])
+        if vm.properties.runtime.host.name != esxi['hostname']:
+          for k in available_hosts.keys():
+            if available_hosts[k] == esxi['hostname']:
+              to_host = k
+              break
+        if to_host is not None:
+          vm.migrate(host=to_host)
 
     # Change Memory
     if vm_hardware['memory_mb']:
