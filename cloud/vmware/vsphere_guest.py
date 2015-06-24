@@ -547,15 +547,27 @@ def deploy_template(vsphere_client, guest, resource_pool, template_src, esxi, mo
         vmTarget = vsphere_client.get_vm_by_name(guest)
     except Exception:
         pass
+    
     if not vmTemplate.properties.config.template:
         module.fail_json(
             msg="Target %s is not a registered template" % template_src
         )
+        
+    to_host = None 
+    if esxi.has_key('hostname') and esxi['hostname']:
+        available_hosts = vsphere_client.get_hosts()
+        if esxi['hostname'] not in available_hosts.values():
+            module.fail_json(msg="%s doesn't exist" % esxi['hostname'])
+        for k in available_hosts.keys():
+            if available_hosts[k] == esxi['hostname']:
+                to_host = k
+                break
+
     try:
         if vmTarget:
             changed = False
         else:
-            vmTemplate.clone(guest, resourcepool=rpmor)
+            vmTemplate.clone(guest, resourcepool=rpmor, host=to_host)
             changed = True
         vsphere_client.disconnect()
         module.exit_json(changed=changed)
@@ -576,19 +588,20 @@ def reconfigure_vm(vsphere_client, vm, module, esxi, resource_pool, cluster_name
     cpuHotAddEnabled = bool(vm.properties.config.cpuHotAddEnabled)
     cpuHotRemoveEnabled = bool(vm.properties.config.cpuHotRemoveEnabled)
  
+ 
     # Change Host
-    if esxi['hostname']:
-        to_host = None
+    if esxi.has_key('hostname') and esxi['hostname']:
+        to_host = None 
         available_hosts = vsphere_client.get_hosts()
         if esxi['hostname'] not in available_hosts.values():
-          raise ValueError("%s doesn't exist" % esxi['hostname'])
+            module.fail_json(msg="%s doesn't exist" % esxi['hostname'])
         if vm.properties.runtime.host.name != esxi['hostname']:
-          for k in available_hosts.keys():
-            if available_hosts[k] == esxi['hostname']:
-              to_host = k
-              break
+            for k in available_hosts.keys():
+                if available_hosts[k] == esxi['hostname']:
+                    to_host = k
+                    break
         if to_host is not None:
-          vm.migrate(host=to_host)
+            vm.migrate(host=to_host)
 
     # Change Memory
     if vm_hardware['memory_mb']:
